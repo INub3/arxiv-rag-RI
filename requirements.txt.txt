@@ -1,6 +1,0 @@
-streamlit
-sentence-transformers
-pymilvus==3.0.0
-milvus-lite==3.1.0
-google-genai
-torch
