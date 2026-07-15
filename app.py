@@ -1,17 +1,36 @@
 import os
+import time
+import random
+
 import streamlit as st
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from pymilvus import connections, Collection
 from google import genai
 from google.genai import types
 from google.genai import errors as genai_errors
-import time
-import random
 
 # =========================================================
 # Configuración de página
 # =========================================================
 st.set_page_config(page_title="RAG arXiv Chat", page_icon="📚", layout="wide")
+
+# =========================================================
+# DEBUG - Verificación de archivos (quitar después de diagnosticar)
+# =========================================================
+st.write("### 🔧 DEBUG INFO")
+st.write("cwd:", os.getcwd())
+st.write("contenido raíz:", os.listdir("."))
+st.write("existe arxiv.db?:", os.path.isdir("arxiv.db"))
+
+if os.path.isdir("arxiv.db"):
+    for root, dirs, files in os.walk("arxiv.db"):
+        for f in files:
+            path = os.path.join(root, f)
+            st.write(path, "-", os.path.getsize(path), "bytes")
+else:
+    st.error("La carpeta arxiv.db NO existe en el entorno de despliegue.")
+
+st.write("---")
 
 # =========================================================
 # Carga de recursos (cacheada para no recargar en cada mensaje)
@@ -34,14 +53,17 @@ def load_collection():
 
 @st.cache_resource
 def load_gemini_client():
-    api_key = os.environ.get("GEMINI_API_KEY")
+    api_key = st.secrets["GEMINI_API_KEY"]
     return genai.Client(api_key=api_key)
-
 
 embedding_model = load_embedding_model()
 reranker = load_reranker()
 collection = load_collection()
 gemini_client = load_gemini_client()
+
+# DEBUG - número de entidades en la colección
+st.write("DEBUG - num_entities en 'papers':", collection.num_entities)
+st.write("---")
 
 GEMINI_MODEL = "gemini-3.5-flash"
 BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
@@ -62,6 +84,7 @@ Reglas estrictas:
 # =========================================================
 # Funciones del pipeline (idénticas a las del notebook)
 # =========================================================
+
 def retrieve(query, top_k=20):
     query_with_prefix = BGE_QUERY_PREFIX + query
     query_embedding = embedding_model.encode(query_with_prefix, normalize_embeddings=True).tolist()
@@ -75,13 +98,16 @@ def retrieve(query, top_k=20):
         output_fields=["text"]
     )
 
-    st.write("DEBUG num_entities:", collection.num_entities)
+    # DEBUG - resultados crudos de la búsqueda
+    st.write("DEBUG num_entities (al buscar):", collection.num_entities)
     st.write("DEBUG resultados encontrados:", len(results[0]))
 
     return [{"text": hit.entity.get("text"), "score": float(hit.score)} for hit in results[0]]
 
 
 def rerank(query, candidates, top_k=5):
+    if not candidates:
+        return []
     pairs = [(query, c["text"]) for c in candidates]
     scores = reranker.predict(pairs)
     reranked = [{"text": c["text"], "rerank_score": float(s)} for c, s in zip(candidates, scores)]
@@ -107,6 +133,9 @@ siguiendo las reglas del sistema."""
 
 
 def generate_answer(query, evidences, temperature=0.2, max_retries=4):
+    if not evidences:
+        return "El corpus no contiene información suficiente para responder esta consulta con certeza."
+
     prompt = build_prompt(query, evidences)
 
     for attempt in range(max_retries):
