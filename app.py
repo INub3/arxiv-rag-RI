@@ -62,7 +62,6 @@ Reglas estrictas:
 # =========================================================
 # Funciones del pipeline (idénticas a las del notebook)
 # =========================================================
-
 def retrieve(query, top_k=20):
     query_with_prefix = BGE_QUERY_PREFIX + query
     query_embedding = embedding_model.encode(query_with_prefix, normalize_embeddings=True).tolist()
@@ -75,6 +74,9 @@ def retrieve(query, top_k=20):
         limit=top_k,
         output_fields=["text"]
     )
+
+    st.write("DEBUG num_entities:", collection.num_entities)
+    st.write("DEBUG resultados encontrados:", len(results[0]))
 
     return [{"text": hit.entity.get("text"), "score": float(hit.score)} for hit in results[0]]
 
