@@ -65,7 +65,7 @@ gemini_client = load_gemini_client()
 st.write("DEBUG - num_entities en 'papers':", collection.num_entities)
 st.write("---")
 
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash"
 BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
 RAG_SYSTEM_INSTRUCTION = """Eres un asistente experto en literatura científica que responde preguntas
